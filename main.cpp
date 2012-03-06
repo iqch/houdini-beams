@@ -38,13 +38,9 @@ using namespace std;
 #include <VRAY/VRAY_Volume.h>
 #include <VRAY/VRAY_Procedural.h>
 
-#include <UT/UT_Lock.h>
-
 //////////////////////////////////////////////////////////////////////////
 // VOLUME FX
 //////////////////////////////////////////////////////////////////////////
-
-
 
 class VRAY_BeamVolume : public VRAY_Volume
 {
@@ -74,55 +70,13 @@ private:
 
 	int argc;
 	char* argv[4096];
-
-	//CVEX_Context context;
-	//bool vexvalid;
-
-	//CVEX_Value *varCd, *varOs;
-	//CVEX_Value *varP, *varl, *_varCd, *varr, *varBl, *varid;
-
-	//UT_Lock* lock;
 };
 
 VRAY_BeamVolume::VRAY_BeamVolume(UT_String file, UT_String shader) // ++
 	: m_valid(0)
 	, m_shading(shader)
-	//, vexvalid(false)
-	//, varCd(NULL), varOs(NULL)
-	//, varP(NULL), varl(NULL), _varCd(NULL), varr(NULL), varBl(NULL), varid(NULL)
-	//, lock(new UT_Lock)
 {
-	//context.addInput("P",CVEX_TYPE_VECTOR3,true);
-	//context.addInput("Cd",CVEX_TYPE_VECTOR3,true);
-	//context.addInput("l",CVEX_TYPE_VECTOR3,true);
-	//context.addInput("r",CVEX_TYPE_FLOAT,true);
-	//context.addInput("Bl",CVEX_TYPE_FLOAT,true);
-	//context.addInput("id",CVEX_TYPE_FLOAT,true);
-		
-	//char *argv[4096];
 	argc = m_shading.parse(argv,4096);
-
-	/*context.load(argc,&argv);
-
-	vexvalid = context.isLoaded();
-	
-	if(vexvalid)
-	{
-		varCd = context.findOutput("Cd",CVEX_TYPE_VECTOR3); vexvalid &= (varCd!=NULL); //cout << (vexvalid ? "ok" : "fail") << endl;
-		varOs = context.findOutput("Os",CVEX_TYPE_VECTOR3); vexvalid &= (varOs!=NULL); //cout << (vexvalid ? "ok" : "fail") << endl;
-
-		varP = context.findInput("P",CVEX_TYPE_VECTOR3); //vexvalid &= (pvar!=NULL);  cout << (vexvalid ? "ok" : "fail") << endl;
-		varl = context.findInput("l",CVEX_TYPE_VECTOR3); //vexvalid &= (lvar!=NULL);  cout << (vexvalid ? "ok" : "fail") << endl;
-		_varCd = context.findInput("Cd",CVEX_TYPE_VECTOR3); //vexvalid &= (_cdinvar!=NULL);  cout << (vexvalid ? "ok" : "fail") << endl;
-		varr = context.findInput("r",CVEX_TYPE_FLOAT); //vexvalid &= (rvar!=NULL);  cout << (vexvalid ? "ok" : "fail") << endl;
-		varBl = context.findInput("Bl",CVEX_TYPE_FLOAT); //vexvalid &= (blvar!=NULL); cout << (vexvalid ? "ok" : "fail") << endl;
-		varid = context.findInput("id",CVEX_TYPE_FLOAT); //vexvalid &= (idvar!=NULL); cout << (vexvalid ? "ok" : "fail") << endl;
-	};
-
-	if(!vexvalid)
-	{
-		cout << "VR_BEAMS: VEX SHADER LOADING FAILED!!!" << endl;
-	};*/
 
 	GU_Detail gdp;
 	UT_Options ops;
@@ -238,10 +192,7 @@ VRAY_BeamVolume::VRAY_BeamVolume(UT_String file, UT_String shader) // ++
 	};
 };
 
-VRAY_BeamVolume::~VRAY_BeamVolume()
-{
-	//delete lock;
-}; //++
+VRAY_BeamVolume::~VRAY_BeamVolume() {}; //++
 
 void VRAY_BeamVolume::getBoxes(UT_RefArray<UT_BoundingBox> &boxes, float radius, float dbound, float zerothreshold) const //++
 {
@@ -399,7 +350,6 @@ void VRAY_BeamVolume::evaluateMulti(const UT_Vector3 *pos,
 
 	// CVEX
 	CVEX_Context context;
-	//bool vexvalid;
 
 	CVEX_Value* varCd=NULL, *varOs=NULL;
 	CVEX_Value *varP=NULL, *varl=NULL, *_varCd=NULL, *varr=NULL, *varBl=NULL, *varid=NULL;
@@ -437,13 +387,10 @@ void VRAY_BeamVolume::evaluateMulti(const UT_Vector3 *pos,
 		cout << "VR_BEAMS: VEX SHADER LOADING FAILED!!!" << endl;
 	};
 
-
 	UT_Vector3Array resCd, resOs;
 	UT_Int32Array resI;
 
 	int cnt = aCd.entries();
-
-	//static_cast<UT_Lock*>(lock)->lock();
 
 	do
 	{
@@ -509,8 +456,6 @@ void VRAY_BeamVolume::evaluateMulti(const UT_Vector3 *pos,
 		delete [] outOs;
 	}
 	while(false);
-
-	//static_cast<UT_Lock*>(lock)->unlock();
 
 	// RETURN RESULT
 	for(int i=0;i<size;i++)
