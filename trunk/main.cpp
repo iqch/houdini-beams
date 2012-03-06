@@ -1,3 +1,16 @@
+/*************************************************************
+* Copyright (c) 2012 by Egor N. Chashchin. All Rights Reserved.          *
+**************************************************************/
+
+/*
+*       main.cpp - VRAY_Beams - volumetric line enveloper fx
+*
+*       Version: 0.9
+*       Authors: Egor N. Chashchin
+*       Contact: iqcook@gmail.com
+*
+*/
+
 // CRT
 #include <iostream>
 using namespace std;
