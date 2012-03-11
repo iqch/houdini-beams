@@ -60,23 +60,30 @@ private:
 	
 	UT_String m_shading;
 
-	UT_FloatArray l,w,W;
+	UT_FloatArray m_l,m_w,m_W;
 
-	UT_Vector3Array P,D,N,G;
+	UT_Vector3Array m_P,m_D,m_N,m_G;
 	
-	UT_Vector3Array Cd0,Cd1;
+	UT_Vector3Array m_Cd0,m_Cd1;
 
-	UT_RefArray<UT_BoundingBox> BB;
+	UT_RefArray<UT_BoundingBox> m_BB;
 
-	int argc;
-	char* argv[4096];
+	struct rbound {
+		UT_BoundingBox bb;
+		int beam;
+	};
+
+	UT_RefArray<rbound> m_RB;
+
+	int m_argc;
+	char* m_argv[4096];
 };
 
 VRAY_BeamVolume::VRAY_BeamVolume(UT_String file, UT_String shader) // ++
 	: m_valid(0)
 	, m_shading(shader)
 {
-	argc = m_shading.parse(argv,4096);
+	m_argc = m_shading.parse(m_argv,4096);
 
 	GU_Detail gdp;
 	UT_Options ops;
@@ -92,20 +99,20 @@ VRAY_BeamVolume::VRAY_BeamVolume(UT_String file, UT_String shader) // ++
 
 	int pcnt = gdp.primitives().entries(); 
 
-	l.resize(pcnt);
-	P.resize(pcnt);
+	m_l.resize(pcnt);
+	m_P.resize(pcnt);
 
-	D.resize(pcnt);
-	N.resize(pcnt);
-	G.resize(pcnt);
+	m_D.resize(pcnt);
+	m_N.resize(pcnt);
+	m_G.resize(pcnt);
 
-	BB.resize(pcnt);
+	m_BB.resize(pcnt);
 
-	w.resize(pcnt);
-	W.resize(pcnt);
+	m_w.resize(pcnt);
+	m_W.resize(pcnt);
 
-	Cd0.resize(pcnt);
-	Cd1.resize(pcnt);
+	m_Cd0.resize(pcnt);
+	m_Cd1.resize(pcnt);
 
 	GA_ROHandleV3 hp(gdp.getP());
 	GA_ROHandleV3 hn(&gdp, GEO_POINT_DICT, "N");
@@ -125,32 +132,32 @@ VRAY_BeamVolume::VRAY_BeamVolume(UT_String file, UT_String shader) // ++
 		UT_Vector3 P0 = hp.get(p0);
 		UT_Vector3 P1 = hp.get(p1);
 
-		P[m_valid] = P0;
-		D[m_valid] = P1-P0;
-		l[m_valid] = D[m_valid].normalize();
+		m_P[m_valid] = P0;
+		m_D[m_valid] = P1-P0;
+		m_l[m_valid] = m_D[m_valid].normalize();
 
 		// W
 		if(hw.isValid())
 		{
-			w[m_valid] = hw.get(p0);;
-			W[m_valid] = hw.get(p1);
+			m_w[m_valid] = hw.get(p0);;
+			m_W[m_valid] = hw.get(p1);
 		}
 		else
 		{
-			w[m_valid] = 1;
-			W[m_valid] = 1;
+			m_w[m_valid] = 1;
+			m_W[m_valid] = 1;
 		};
 
 		// CD
 		if(hc.isValid())
 		{
-			Cd0[m_valid] = hc.get(p0);
-			Cd1[m_valid] = hc.get(p1);
+			m_Cd0[m_valid] = hc.get(p0);
+			m_Cd1[m_valid] = hc.get(p1);
 		}
 		else
 		{
-			Cd0[m_valid] = UT_Vector3(1,1,1);
-			Cd1[m_valid] = UT_Vector3(1,1,1);
+			m_Cd0[m_valid] = UT_Vector3(1,1,1);
+			m_Cd1[m_valid] = UT_Vector3(1,1,1);
 		};
 
 		// N-G
@@ -165,28 +172,54 @@ VRAY_BeamVolume::VRAY_BeamVolume(UT_String file, UT_String shader) // ++
 		};
 		
 		_N.normalize();
-		UT_Vector3 _G = D[m_valid];
+		UT_Vector3 _G = m_D[m_valid];
 		_G.cross(_N);
 		_G.normalize();
 
 		_N = _G;
-		_N.cross(D[m_valid]);
+		_N.cross(m_D[m_valid]);
 
-		N[m_valid]=_N;
-		G[m_valid]=_G;
+		m_N[m_valid]=_N;
+		m_G[m_valid]=_G;
 
 		// BBB
 		UT_BoundingBox B(P0,P1);
 
-		float _w = w[m_valid];
-		float _W = W[m_valid];
+		float _w = m_w[m_valid];
+		float _W = m_W[m_valid];
 
 		UT_BoundingBox B0(P0-UT_Vector3(_w,_w,_w),P0+UT_Vector3(_w,_w,_w));
 		UT_BoundingBox B1(P1-UT_Vector3(_W,_W,_W),P1+UT_Vector3(_W,_W,_W));
 
 		B.enlargeBounds(B0);
 		B.enlargeBounds(B1);
-		BB[m_valid] = B;
+		m_BB[m_valid] = B;
+
+		UT_Vector3 pos = P0;
+		float ll = 0;
+
+		float dw = _W-_w;
+
+		do 
+		{
+			if(ll >= m_l[m_valid])
+			{
+				rbound B = {B1,m_valid};
+				m_RB.append(B);
+				break;
+			};
+
+			float w = ll/m_l[m_valid]*dw+_w;
+
+			UT_BoundingBox bb(pos-UT_Vector3(w,w,w),pos+UT_Vector3(w,w,w));
+
+			rbound B = {bb,m_valid};
+			m_RB.append(B);
+
+			pos = pos+m_D[m_valid]*w;
+			ll += w;
+		} 
+		while(true);
 
 		m_valid++;
 	};
@@ -200,9 +233,10 @@ void VRAY_BeamVolume::getBoxes(UT_RefArray<UT_BoundingBox> &boxes, float radius,
 
 	float expand = radius+dbound;
 
-	for(int i=0;i<m_valid;i++)
+	//for(int i=0;i<m_valid;i++)
+	for(int i=0;i<m_RB.entries();i++)
 	{
-		UT_BoundingBox B = BB[i];
+		UT_BoundingBox B = m_RB[i].bb;
 		B.expandBounds(expand,expand,expand);
 		boxes.append(B);
 	};
@@ -214,13 +248,9 @@ void VRAY_BeamVolume::getAttributeBinding(
 {
 	if(m_valid==0) return;
 
-	UT_String Cd = "Cd";
-	names.append(Cd);
-	sizes.append(3);
-
-	UT_String Os = "Os";
-	names.append(Os);
-	sizes.append(3);
+	UT_String* Bs = new UT_String("Bs");
+	names.append(*Bs);
+	sizes.append(4);
 };
 
 //#define COMP_MAX 4
@@ -254,29 +284,29 @@ void VRAY_BeamVolume::evaluateMulti(const UT_Vector3 *pos,
 		int ccnt = 0;
 		for(int i=0;i<m_valid;i++)
 		{
-			if(!BB[i].isInside(pos[j])) continue;
+			if(!m_BB[i].isInside(pos[j])) continue;
 
 			id=float(i);
 
-			_D=D[i]; _N=N[i]; _G=G[i];
+			_D=m_D[i]; _N=m_N[i]; _G=m_G[i];
 
-			O = pos[j]-P[i];
+			O = pos[j]-m_P[i];
 
-			p = O.dot(D[i]);
+			p = O.dot(m_D[i]);
 
-			if(p<-w[i]) continue;
-			if(p>(W[i]+l[i])) continue;
+			if(p<-m_w[i]) continue;
+			if(p>(m_W[i]+m_l[i])) continue;
 
-			L = l[i];
+			L = m_l[i];
 
-			v = p/l[i];
+			v = p/m_l[i];
 
-			cd0 = Cd0[i]; cd1 = Cd1[i];
+			cd0 = m_Cd0[i]; cd1 = m_Cd1[i];
 
 			if(p<0)
 			{
-				if(O.length2() > w[i]*w[i]) continue;
-				r = 1-O.length()/w[i];
+				if(O.length2() > m_w[i]*m_w[i]) continue;
+				r = 1-O.length()/m_w[i];
 
 				aP.append(pos[j]);
 				aCd.append(cd0);
@@ -285,7 +315,7 @@ void VRAY_BeamVolume::evaluateMulti(const UT_Vector3 *pos,
 
 				aid.append(id);
 
-				UT_Vector3 CC(0,_N.dot(O)/w[i],_G.dot(O)/w[i]);
+				UT_Vector3 CC(0,_N.dot(O)/m_w[i],_G.dot(O)/m_w[i]);
 				al.append(CC);
 
 				aI.append(j);
@@ -295,11 +325,11 @@ void VRAY_BeamVolume::evaluateMulti(const UT_Vector3 *pos,
 				continue;
 			};
 
-			if(p>l[i])
+			if(p>m_l[i])
 			{
-				UT_Vector3 oo = pos[j]-(P[i]+D[i]*l[i]);
-				if(oo.length2() > W[i]*W[i]) continue;
-				r = 1-oo.length()/W[i];
+				UT_Vector3 oo = pos[j]-(m_P[i]+m_D[i]*m_l[i]);
+				if(oo.length2() > m_W[i]*m_W[i]) continue;
+				r = 1-oo.length()/m_W[i];
 
 				aP.append(pos[j]);
 				aCd.append(cd1);
@@ -308,7 +338,7 @@ void VRAY_BeamVolume::evaluateMulti(const UT_Vector3 *pos,
 
 				aid.append(id);
 
-				UT_Vector3 CC(1,_N.dot(O)/W[i],_G.dot(O)/W[i]);
+				UT_Vector3 CC(1,_N.dot(O)/m_W[i],_G.dot(O)/m_W[i]);
 				al.append(CC);
 
 				aI.append(j);
@@ -318,9 +348,9 @@ void VRAY_BeamVolume::evaluateMulti(const UT_Vector3 *pos,
 				continue;
 			};
 
-			O = O-D[i]*p;
+			O = O-m_D[i]*p;
 
-			_W = w[i]+p/l[i]*(W[i]-w[i]);
+			_W = m_w[i]+p/m_l[i]*(m_W[i]-m_w[i]);
 
 			if(O.length2()>_W*_W) continue;
 
@@ -351,8 +381,8 @@ void VRAY_BeamVolume::evaluateMulti(const UT_Vector3 *pos,
 	// CVEX
 	CVEX_Context context;
 
-	CVEX_Value* varCd=NULL, *varOs=NULL;
-	CVEX_Value *varP=NULL, *varl=NULL, *_varCd=NULL, *varr=NULL, *varBl=NULL, *varid=NULL;
+	CVEX_Value* varBs=NULL;
+	CVEX_Value *varP=NULL, *varl=NULL, *varCd=NULL, *varr=NULL, *varBl=NULL, *varid=NULL;
 
 	context.addInput("P",CVEX_TYPE_VECTOR3,true);
 	context.addInput("Cd",CVEX_TYPE_VECTOR3,true);
@@ -363,23 +393,22 @@ void VRAY_BeamVolume::evaluateMulti(const UT_Vector3 *pos,
 
 	char* _argv[4096];
 
-	memcpy(_argv,argv,sizeof(char*)*4096);
+	memcpy(_argv,m_argv,sizeof(char*)*4096);
 
-	context.load(argc,_argv);
+	context.load(m_argc,_argv);
 
-	bool vexvalid = context.isLoaded();
+	bool vexvalid = context.isLoaded(); //if(vexvalid) cout << "CONTEXT OK!" << endl;
 
 	if(vexvalid)
 	{
-		varCd = context.findOutput("Cd",CVEX_TYPE_VECTOR3); vexvalid &= (varCd!=NULL); //cout << (vexvalid ? "ok" : "fail") << endl;
-		varOs = context.findOutput("Os",CVEX_TYPE_VECTOR3); vexvalid &= (varOs!=NULL); //cout << (vexvalid ? "ok" : "fail") << endl;
+		varBs = context.findOutput("Bs",CVEX_TYPE_VECTOR4); vexvalid &= (varBs!=NULL);
 
-		varP = context.findInput("P",CVEX_TYPE_VECTOR3); //vexvalid &= (pvar!=NULL);  cout << (vexvalid ? "ok" : "fail") << endl;
-		varl = context.findInput("l",CVEX_TYPE_VECTOR3); //vexvalid &= (lvar!=NULL);  cout << (vexvalid ? "ok" : "fail") << endl;
-		_varCd = context.findInput("Cd",CVEX_TYPE_VECTOR3); //vexvalid &= (_cdinvar!=NULL);  cout << (vexvalid ? "ok" : "fail") << endl;
-		varr = context.findInput("r",CVEX_TYPE_FLOAT); //vexvalid &= (rvar!=NULL);  cout << (vexvalid ? "ok" : "fail") << endl;
-		varBl = context.findInput("Bl",CVEX_TYPE_FLOAT); //vexvalid &= (blvar!=NULL); cout << (vexvalid ? "ok" : "fail") << endl;
-		varid = context.findInput("id",CVEX_TYPE_FLOAT); //vexvalid &= (idvar!=NULL); cout << (vexvalid ? "ok" : "fail") << endl;
+		varP = context.findInput("P",CVEX_TYPE_VECTOR3);
+		varl = context.findInput("l",CVEX_TYPE_VECTOR3);
+		varCd = context.findInput("Cd",CVEX_TYPE_VECTOR3);
+		varr = context.findInput("r",CVEX_TYPE_FLOAT);
+		varBl = context.findInput("Bl",CVEX_TYPE_FLOAT);
+		varid = context.findInput("id",CVEX_TYPE_FLOAT);
 	};
 
 	if(!vexvalid)
@@ -387,7 +416,7 @@ void VRAY_BeamVolume::evaluateMulti(const UT_Vector3 *pos,
 		cout << "VR_BEAMS: VEX SHADER LOADING FAILED!!!" << endl;
 	};
 
-	UT_Vector3Array resCd, resOs;
+	UT_Vector4Array resBs;
 	UT_Int32Array resI;
 
 	int cnt = aCd.entries();
@@ -402,7 +431,7 @@ void VRAY_BeamVolume::evaluateMulti(const UT_Vector3 *pos,
 		if(varP!=NULL) varP->setData(_P,cnt);
 
 		float* _Cd = reinterpret_cast<float*>(aCd.array());
-		if(_varCd!=NULL) _varCd->setData(_Cd,cnt);
+		if(varCd!=NULL) varCd->setData(_Cd,cnt);
 
 		float* _l = reinterpret_cast<float*>(al.array());
 		if(varl!=NULL) varl->setData(_l,cnt);
@@ -416,11 +445,9 @@ void VRAY_BeamVolume::evaluateMulti(const UT_Vector3 *pos,
 		float* _Bl = reinterpret_cast<float*>(aBl.array());
 		if(varBl!=NULL) varBl->setData(_Bl,cnt);
 
-		float* outCd = new float[3*cnt];
-		float* outOs = new float[3*cnt];
+		float* outBs = new float[4*cnt];
 
-		varCd->setData(outCd,cnt);
-		varOs->setData(outOs,cnt);
+		varBs->setData(outBs,cnt);
 
 		const_cast<CVEX_Context&>(context).run(cnt,false);
 
@@ -428,32 +455,25 @@ void VRAY_BeamVolume::evaluateMulti(const UT_Vector3 *pos,
 
 		int index = 0;
 
-		UT_Vector3 rCd(0,0,0);
-		UT_Vector3 rOs(0,0,0);
+		UT_Vector4 rBs(0,0,0,0);
 
 		while(index<cnt)
 		{
 			if(curr != aI[index])
 			{
-				resCd.append(rCd);
-				resOs.append(rOs);
+				resBs.append(rBs);
 				resI.append(curr);
 				curr = aI[index];
 
-				rCd = UT_Vector3(0,0,0);
-				rOs = UT_Vector3(0,0,0);
+				rBs = UT_Vector4(0,0,0,0);
 			};
-			rCd = rCd
-				+UT_Vector3(outCd[3*index+0],outCd[3*index+1],outCd[3*index+2])
-				-UT_Vector3(outCd[3*index+0]*rCd[0],outCd[3*index+1]*rCd[1],outCd[3*index+2]*rCd[2]);
-			rOs = rOs
-				+UT_Vector3(outOs[3*index+0],outOs[3*index+1],outOs[3*index+2])
-				-UT_Vector3(outOs[3*index+0]*rOs[0],outOs[3*index+1]*rOs[1],outOs[3*index+2]*rOs[2]);
+			rBs = rBs
+				+UT_Vector4(outBs[4*index+0],outBs[4*index+1],outBs[4*index+2],outBs[4*index+3])
+				-UT_Vector4(outBs[4*index+0]*rBs[0],outBs[4*index+1]*rBs[1],outBs[4*index+2]*rBs[2],outBs[4*index+3]*rBs[3]);
 			index++;
 		};
 
-		delete [] outCd;
-		delete [] outOs;
+		delete [] outBs;
 	}
 	while(false);
 
@@ -461,7 +481,7 @@ void VRAY_BeamVolume::evaluateMulti(const UT_Vector3 *pos,
 	for(int i=0;i<size;i++)
 	{
 		int index = i*stride;
-		data[index+0] = 0; data[index+1] = 0; data[index+2] = 0;
+		data[index+0] = 0; data[index+1] = 0; data[index+2] = 0;; data[index+3] = 0;
 	}
 	switch (idx)
 	{
@@ -469,14 +489,7 @@ void VRAY_BeamVolume::evaluateMulti(const UT_Vector3 *pos,
 		for(int i=0;i<resI.entries();i++)
 		{
 			int index = resI[i]*stride;
-			data[index+0] = resCd[i][0]; data[index+1] = resCd[i][1]; data[index+2] = resCd[i][2];
-		};
-		break;
-	case 1: // "Os"
-		for(int i=0;i<resI.entries();i++)
-		{
-			int index = resI[i]*stride;
-			data[index+0] = resOs[i][0]; data[index+1] = resOs[i][1]; data[index+2] = resOs[i][2];
+			data[index+0] = resBs[i][0]; data[index+1] = resBs[i][1]; data[index+2] = resBs[i][2];; data[index+3] = resBs[i][3];
 		};
 		break;
 	default: 
@@ -524,15 +537,10 @@ int VRAY_Beams::initialize(const UT_BoundingBox *box)
 
 void VRAY_Beams::render()
 {
-	//UT_String surf = "****";
-	//import("object:surface",surf);
-	//cout << "SURF" << surf << endl;
-
 	openVolumeObject();
 	addVolume(new VRAY_BeamVolume(m_Geo,m_Shader), 0.0F);
-	//changeSetting("surface", "constant", "object");
 	closeObject();
-}
+};
 
 ///////////////////////////////////////////////////////
 // ATTRIBUTES
